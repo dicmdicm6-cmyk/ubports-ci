@@ -1,0 +1,29 @@
+#!/bin/bash
+# Cleanup script for build artifacts
+
+set -e
+
+source halium.env
+
+echo "=== Cleaning build artifacts ==="
+
+if [ -d "$ANDROID_ROOT/out" ]; then
+    echo "Removing output directory..."
+    rm -rf $ANDROID_ROOT/out
+fi
+
+if [ -d "$ANDROID_ROOT/.repo" ]; then
+    echo "Removing repo directory..."
+    rm -rf $ANDROID_ROOT/.repo
+fi
+
+echo "Running make clean..."
+cd $ANDROID_ROOT
+if [ -f "build/envsetup.sh" ]; then
+    source build/envsetup.sh
+    make clean
+fi
+
+echo "=== Cleanup completed ==="
+
+
