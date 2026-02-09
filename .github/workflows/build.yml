@@ -6,94 +6,92 @@
 # Credit: https://github.com/P3TERX/Actions-OpenWrt
 #=================================================
 
-name: Build System Image
+name: Build System Image (Legacy)
 
-on: 
-  push:
-    branches:
-      - master
+on:
   release:
     types: [published]
 
-jobs:
+env:
+  VENDOR: xiaomi
+  DEVICE: clover
+  ANDROID_ROOT: /home/runner/work/halium
 
+jobs:
   build:
     runs-on: ubuntu-20.04
 
-    env:
-      VENDOR: xiaomi
-      DEVICE: clover
-      ANDROID_ROOT: /home/runner/work/halium/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    steps:        
-    - name: Checkout
-      uses: actions/checkout@master
+      - name: Cleanup Disk
+        uses: HandsomeYingyan/cleanup-disk-action@v3.0
 
-    - name: Cleanup Disk
-      uses: HandsomeYingyan/cleanup-disk-action@v3.0
+      - name: Initialization environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+          openjdk-8-jdk android-tools-adb bc \
+          bison build-essential curl flex g++-multilib \
+          gcc-multilib gnupg gperf imagemagick lib32ncurses5-dev \
+          lib32readline-dev lib32z1-dev liblz4-tool \
+          libncurses5-dev libsdl1.2-dev libssl-dev libwxgtk3.0-gtk3-dev \
+          libxml2 libxml2-utils lzop pngcrush rsync schedtool \
+          squashfs-tools xsltproc yasm zip zlib1g-dev git python3 python3-dev \
+          python-is-python3
+          sudo docker rmi $(docker images -q) 2>/dev/null || true
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /etc/mysql \
+            /etc/php
+          mkdir -p ~/bin
+          wget 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
+          chmod +x ~/bin/repo
+          git config --global user.name "UBports Xiaomi Pad 4 CI"
+          git config --global user.email "thisemaildoesnotexist@exist.com"
+          mkdir -p "$ANDROID_ROOT"
 
-    - name: Initialization environment
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-        openjdk-8-jdk android-tools-adb bc \
-        bison build-essential curl flex g++-multilib \
-        gcc-multilib gnupg gperf imagemagick lib32ncurses5-dev \
-        lib32readline-dev lib32z1-dev liblz4-tool \
-        libncurses5-dev libsdl1.2-dev libssl-dev libwxgtk3.0-gtk3-dev \
-        libxml2 libxml2-utils lzop pngcrush rsync schedtool \
-        squashfs-tools xsltproc yasm zip zlib1g-dev git python3 python3-dev \
-        python-is-python3
-        sudo docker rmi `docker images -q`
-        sudo rm -rf \
-          /usr/share/dotnet \
-          /etc/mysql \
-          /etc/php
-        mkdir -p ~/bin
-        wget 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
-        chmod +x ~/bin/repo
-        git config --global user.name "UBports Xiaomi Pad 4 CI"
-        git config --global user.email "thisemaildoesnotexist@exist.com"
-        mkdir -p $ANDROID_ROOT
-        
-    - name: Maximize build space
-      uses: easimon/maximize-build-space@master
-      with:
-         root-reserve-mb: 1024
-         swap-size-mb: 512
-         build-mount-path: '$ANDROID_ROOT'
+      - name: Maximize build space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 1024
+          swap-size-mb: 512
+          build-mount-path: ${{ env.ANDROID_ROOT }}
 
-    - name: Downloading source code
-      run: |
-        source halium.env
-        cd $ANDROID_ROOT
-        repo init -u https://github.com/Halium/android -b halium-9.0 --depth=1
-        mkdir -p $ANDROID_ROOT/.repo/local_manifests
-        wget https://raw.githubusercontent.com/ubuntu-touch-clover/local_manifests/halium-9.0/$DEVICE.xml -O $ANDROID_ROOT/.repo/local_manifests/$DEVICE.xml
-        repo sync -j8 -c --no-clone-bundle --no-tags
-    
-    - name: Build HAL
-      run: |
-        sudo apt-get install -y python-is-python2
-        chmod +x build-hal.sh
-        bash -x build-hal.sh
-      shell: bash
+      - name: Downloading source code
+        run: |
+          source halium.env
+          cd "$ANDROID_ROOT"
+          repo init -u https://github.com/Halium/android -b halium-9.0 --depth=1
+          mkdir -p "$ANDROID_ROOT/.repo/local_manifests"
+          wget "https://raw.githubusercontent.com/ubuntu-touch-clover/local_manifests/halium-9.0/$DEVICE.xml" -O "$ANDROID_ROOT/.repo/local_manifests/$DEVICE.xml"
+          repo sync -j8 -c --no-clone-bundle --no-tags
 
-    - name : Upload boot image
-      uses: actions/upload-artifact@master
-      with:
-        name: halium-boot image
-        path: /home/runner/work/halium/out/target/product/clover/halium-boot.img
+      - name: Build HAL
+        run: |
+          sudo apt-get install -y python-is-python2
+          chmod +x build-hal.sh
+          bash -x build-hal.sh
+        shell: bash
 
-    - name : Upload system image
-      uses: actions/upload-artifact@master
-      with:
-         name: System image
-         path: /home/runner/work/halium/out/target/product/clover/system.img
+      - name: Upload boot image
+        uses: actions/upload-artifact@v4
+        with:
+          name: halium-boot-image
+          path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/halium-boot.img
+          if-no-files-found: error
 
+      - name: Upload system image
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-image
+          path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/system.img
+          if-no-files-found: error
 
-    - name : Upload vendor image
-      uses: actions/upload-artifact@master
-      with:
-         name: Vendor image
-         path: /home/runner/work/halium/out/target/product/clover/vendor.img
+      - name: Upload vendor image
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor-image
+          path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/vendor.img
+          if-no-files-found: error

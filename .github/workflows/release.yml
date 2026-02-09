@@ -7,75 +7,52 @@ on:
       - completed
     branches:
       - master
+      - main
 
 jobs:
   release:
     runs-on: ubuntu-latest
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
-    
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
+          pattern: "*-image"
           path: ./artifacts
+          merge-multiple: true
 
       - name: Get current date
         id: date
-        run: echo "date=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
+        run: echo "date=$(date +'%Y%m%d-%H%M')" >> "$GITHUB_OUTPUT"
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ steps.date.outputs.date }}
-          release_name: Halium Build ${{ steps.date.outputs.date }}
+          name: Halium Build ${{ steps.date.outputs.date }}
           body: |
             Automated Halium build for Xiaomi Pad 4 (clover)
-            
+
             **Build Date:** ${{ steps.date.outputs.date }}
             **Commit:** ${{ github.sha }}
-            
+
             ## Images
             - halium-boot.img
             - system.img
             - vendor.img
-            
+
             ## Installation
             Please refer to the documentation for installation instructions.
+          files: |
+            ./artifacts/halium-boot.img
+            ./artifacts/system.img
+            ./artifacts/vendor.img
+          generate_release_notes: true
           draft: false
           prerelease: false
-
-      - name: Upload halium-boot.img
-        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/halium-boot-image/halium-boot.img
-          asset_name: halium-boot.img
-          asset_content_type: application/octet-stream
-
-      - name: Upload system.img
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/System-image/system.img
-          asset_name: system.img
-          asset_content_type: application/octet-stream
-
-      - name: Upload vendor.img
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/Vendor-image/vendor.img
-          asset_name: vendor.img
-          asset_content_type: application/octet-stream
