@@ -1,0 +1,264 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - master
+      - main
+      - develop
+  pull_request:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+    inputs:
+      clean_build:
+        description: 'Clean build (remove cache)'
+        required: false
+        default: 'false'
+
+env:
+  VENDOR: xiaomi
+  DEVICE: clover
+  ANDROID_ROOT: /home/runner/work/halium/
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+
+jobs:
+  validation:
+    name: Validate Configuration
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Validate scripts
+      run: |
+        echo "=== Validating shell scripts ==="
+        for script in *.sh; do
+          if [ -f "$script" ]; then
+            echo "Checking $script..."
+            bash -n "$script"
+          fi
+        done
+        echo "All scripts are valid ✓"
+
+    - name: Validate environment
+      run: |
+        echo "=== Validating environment file ==="
+        source halium.env
+        
+        if [ -z "$DEVICE" ]; then
+          echo "❌ ERROR: DEVICE not set"
+          exit 1
+        fi
+        
+        if [ -z "$ANDROID_ROOT" ]; then
+          echo "❌ ERROR: ANDROID_ROOT not set"
+          exit 1
+        fi
+        
+        echo "✓ DEVICE: $DEVICE"
+        echo "✓ ANDROID_ROOT: $ANDROID_ROOT"
+
+    - name: Check workflow files
+      run: |
+        echo "=== Checking workflow files ==="
+        ls -la .github/workflows/
+        echo "Workflow files validated ✓"
+
+  build:
+    name: Build Halium Images
+    runs-on: ubuntu-20.04
+    needs: validation
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 1
+
+    - name: Free up disk space
+      uses: HandsomeYingyan/cleanup-disk-action@v3.0
+
+    - name: Setup build environment
+      run: |
+        echo "=== Setting up build environment ==="
+        sudo apt-get update
+        sudo apt-get install -y \
+          openjdk-8-jdk android-tools-adb bc \
+          bison build-essential curl flex g++-multilib \
+          gcc-multilib gnupg gperf imagemagick lib32ncurses5-dev \
+          lib32readline-dev lib32z1-dev liblz4-tool \
+          libncurses5-dev libsdl1.2-dev libssl-dev libwxgtk3.0-gtk3-dev \
+          libxml2 libxml2-utils lzop pngcrush rsync schedtool \
+          squashfs-tools xsltproc yasm zip zlib1g-dev git \
+          python3 python3-dev python-is-python3
+        
+        # Clean up Docker images
+        sudo docker rmi $(docker images -q) 2>/dev/null || true
+        
+        # Remove unnecessary files
+        sudo rm -rf \
+          /usr/share/dotnet \
+          /etc/mysql \
+          /etc/php
+        
+        # Setup repo tool
+        mkdir -p ~/bin
+        wget 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
+        chmod +x ~/bin/repo
+        
+        # Git configuration
+        git config --global user.name "UBports Xiaomi Pad 4 CI"
+        git config --global user.email "ci@ubports-clover.local"
+        
+        # Create Android root directory
+        mkdir -p $ANDROID_ROOT
+        
+        echo "Environment setup complete ✓"
+
+    - name: Maximize build space
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 2048
+        swap-size-mb: 1024
+        build-mount-path: ${{ env.ANDROID_ROOT }}
+
+    - name: Cache ccache
+      if: github.event.inputs.clean_build != 'true'
+      uses: actions/cache@v3
+      with:
+        path: ${{ env.CCACHE_DIR }}
+        key: ccache-${{ env.DEVICE }}-${{ github.sha }}
+        restore-keys: |
+          ccache-${{ env.DEVICE }}-
+
+    - name: Download source code
+      run: |
+        echo "=== Downloading Halium source code ==="
+        source halium.env
+        cd $ANDROID_ROOT
+        
+        # Initialize repo
+        repo init -u https://github.com/Halium/android -b halium-9.0 --depth=1
+        
+        # Setup local manifests
+        mkdir -p $ANDROID_ROOT/.repo/local_manifests
+        wget https://raw.githubusercontent.com/ubuntu-touch-clover/local_manifests/halium-9.0/$DEVICE.xml \
+          -O $ANDROID_ROOT/.repo/local_manifests/$DEVICE.xml
+        
+        # Sync repository
+        repo sync -j$(nproc) -c --no-clone-bundle --no-tags
+        
+        echo "Source code download complete ✓"
+
+    - name: Setup ccache
+      run: |
+        echo "=== Configuring ccache ==="
+        export USE_CCACHE=1
+        export CCACHE_EXEC=/usr/bin/ccache
+        ccache -M 50G
+        ccache -z
+        echo "ccache configured ✓"
+
+    - name: Build HAL images
+      run: |
+        echo "=== Building Halium images ==="
+        sudo apt-get install -y python-is-python2
+        chmod +x build-hal.sh
+        bash -x build-hal.sh
+        echo "Build complete ✓"
+
+    - name: Display ccache statistics
+      run: |
+        echo "=== ccache statistics ==="
+        ccache -s
+
+    - name: Generate build info
+      run: |
+        echo "=== Generating build information ==="
+        cd $ANDROID_ROOT/out/target/product/$DEVICE
+        
+        cat > build-info.txt << EOF
+        Build Information
+        ==================
+        Device: $DEVICE
+        Vendor: $VENDOR
+        Date: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+        Branch: ${GITHUB_REF#refs/heads/}
+        Commit: $GITHUB_SHA
+        Workflow: $GITHUB_WORKFLOW
+        Run Number: $GITHUB_RUN_NUMBER
+        
+        MD5 Checksums:
+        ==============
+        EOF
+        
+        md5sum halium-boot.img >> build-info.txt
+        md5sum system.img >> build-info.txt
+        md5sum vendor.img >> build-info.txt
+        
+        cat build-info.txt
+        echo "Build info generated ✓"
+
+    - name: Upload halium-boot image
+      uses: actions/upload-artifact@v3
+      with:
+        name: halium-boot-${{ github.run_number }}
+        path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/halium-boot.img
+        retention-days: 30
+
+    - name: Upload system image
+      uses: actions/upload-artifact@v3
+      with:
+        name: system-image-${{ github.run_number }}
+        path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/system.img
+        retention-days: 30
+
+    - name: Upload vendor image
+      uses: actions/upload-artifact@v3
+      with:
+        name: vendor-image-${{ github.run_number }}
+        path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/vendor.img
+        retention-days: 30
+
+    - name: Upload build info
+      uses: actions/upload-artifact@v3
+      with:
+        name: build-info-${{ github.run_number }}
+        path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/build-info.txt
+        retention-days: 30
+
+    - name: Build summary
+      run: |
+        echo "## 🎉 Build Successful!" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+        echo "- **Device**: $DEVICE" >> $GITHUB_STEP_SUMMARY
+        echo "- **Vendor**: $VENDOR" >> $GITHUB_STEP_SUMMARY
+        echo "- **Date**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")" >> $GITHUB_STEP_SUMMARY
+        echo "- **Commit**: $GITHUB_SHA" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- halium-boot-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "- system-image-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "- vendor-image-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+        echo "- build-info-${{ github.run_number }}" >> $GITHUB_STEP_SUMMARY
+
+  notify:
+    name: Notify Build Status
+    runs-on: ubuntu-latest
+    needs: build
+    if: always()
+    
+    steps:
+    - name: Check build status
+      run: |
+        if [ "${{ needs.build.result }}" == "success" ]; then
+          echo "✅ Build completed successfully"
+        else
+          echo "❌ Build failed"
+          exit 1
+        fi
