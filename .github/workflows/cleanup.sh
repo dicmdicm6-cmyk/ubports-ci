@@ -25,5 +25,3 @@ if [ -f "build/envsetup.sh" ]; then
 fi
 
 echo "=== Cleanup completed ==="
-
-
