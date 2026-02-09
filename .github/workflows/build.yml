@@ -23,11 +23,11 @@ jobs:
     env:
       VENDOR: xiaomi
       DEVICE: clover
-      ANDROID_ROOT: /home/runner/work/halium/
+      ANDROID_ROOT: /home/runner/work/halium
 
     steps:        
     - name: Checkout
-      uses: actions/checkout@master
+      uses: actions/checkout@v4
 
     - name: Cleanup Disk
       uses: HandsomeYingyan/cleanup-disk-action@v3.0
@@ -80,20 +80,20 @@ jobs:
       shell: bash
 
     - name : Upload boot image
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v4
       with:
         name: halium-boot image
-        path: /home/runner/work/halium/out/target/product/clover/halium-boot.img
+        path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/halium-boot.img
 
     - name : Upload system image
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v4
       with:
          name: System image
-         path: /home/runner/work/halium/out/target/product/clover/system.img
+         path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/system.img
 
 
     - name : Upload vendor image
-      uses: actions/upload-artifact@master
+      uses: actions/upload-artifact@v4
       with:
          name: Vendor image
-         path: /home/runner/work/halium/out/target/product/clover/vendor.img
+         path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/vendor.img

@@ -99,23 +99,23 @@ echo ""
 echo "MD5 Checksums:"
 echo "======================================"
 
-if [ -f "$ANDROID_ROOT/out/target/product/clover/halium-boot.img" ]; then
+if [ -f "$ANDROID_ROOT/out/target/product/$DEVICE/halium-boot.img" ]; then
     echo "halium-boot.img:"
-    md5sum $ANDROID_ROOT/out/target/product/clover/halium-boot.img | awk '{print "  " $1}'
+    md5sum $ANDROID_ROOT/out/target/product/$DEVICE/halium-boot.img | awk '{print "  " $1}'
 else
     echo "⚠️  halium-boot.img not found!"
 fi
 
-if [ -f "$ANDROID_ROOT/out/target/product/clover/system.img" ]; then
+if [ -f "$ANDROID_ROOT/out/target/product/$DEVICE/system.img" ]; then
     echo "system.img:"
-    md5sum $ANDROID_ROOT/out/target/product/clover/system.img | awk '{print "  " $1}'
+    md5sum $ANDROID_ROOT/out/target/product/$DEVICE/system.img | awk '{print "  " $1}'
 else
     echo "⚠️  system.img not found!"
 fi
 
-if [ -f "$ANDROID_ROOT/out/target/product/clover/vendor.img" ]; then
+if [ -f "$ANDROID_ROOT/out/target/product/$DEVICE/vendor.img" ]; then
     echo "vendor.img:"
-    md5sum $ANDROID_ROOT/out/target/product/clover/vendor.img | awk '{print "  " $1}'
+    md5sum $ANDROID_ROOT/out/target/product/$DEVICE/vendor.img | awk '{print "  " $1}'
 else
     echo "⚠️  vendor.img not found!"
 fi

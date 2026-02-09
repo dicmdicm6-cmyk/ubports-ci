@@ -10,16 +10,16 @@ on:
 env:
   VENDOR: xiaomi
   DEVICE: clover
-  ANDROID_ROOT: /home/runner/work/halium/
+  ANDROID_ROOT: /home/runner/work/halium
 
 jobs:
   build:
     name: Build Halium Images
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     
     steps:
     - name: Checkout
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Free Disk Space
       uses: HandsomeYingyan/cleanup-disk-action@v3.0
@@ -93,19 +93,19 @@ jobs:
         echo "✅ Build Complete"
 
     - name: Upload Boot Image
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: halium-boot
         path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/halium-boot.img
 
     - name: Upload System Image
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: system-image
         path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/system.img
 
     - name: Upload Vendor Image
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: vendor-image
         path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/vendor.img
