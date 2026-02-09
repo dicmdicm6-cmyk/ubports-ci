@@ -10,102 +10,105 @@ on:
 env:
   VENDOR: xiaomi
   DEVICE: clover
-  ANDROID_ROOT: /home/runner/work/halium/
+  ANDROID_ROOT: /home/runner/work/halium
 
 jobs:
   build:
     name: Build Halium Images
     runs-on: ubuntu-latest
-    
+
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Free Disk Space
-      uses: HandsomeYingyan/cleanup-disk-action@v3.0
+      - name: Free Disk Space
+        uses: HandsomeYingyan/cleanup-disk-action@v3.0
 
-    - name: Setup Environment
-      run: |
-        echo "======================================"
-        echo "🔧 Setting Up Build Environment"
-        echo "======================================"
-        
-        sudo apt-get update -qq
-        sudo apt-get install -y -qq \
-          openjdk-8-jdk android-tools-adb bc \
-          bison build-essential curl flex g++-multilib \
-          gcc-multilib gnupg gperf imagemagick lib32ncurses5-dev \
-          lib32readline-dev lib32z1-dev liblz4-tool \
-          libncurses5-dev libsdl1.2-dev libssl-dev libwxgtk3.0-gtk3-dev \
-          libxml2 libxml2-utils lzop pngcrush rsync schedtool \
-          squashfs-tools xsltproc yasm zip zlib1g-dev git \
-          python3 python3-dev python-is-python3
-        
-        sudo docker rmi $(docker images -q) 2>/dev/null || true
-        sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php
-        
-        mkdir -p ~/bin
-        wget -q 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
-        chmod +x ~/bin/repo
-        
-        git config --global user.name "UBports CI"
-        git config --global user.email "ci@ubports.local"
-        mkdir -p $ANDROID_ROOT
-        
-        echo "✅ Environment Ready"
+      - name: Setup Environment
+        run: |
+          echo "======================================"
+          echo "🔧 Setting Up Build Environment"
+          echo "======================================"
 
-    - name: Maximize Build Space
-      uses: easimon/maximize-build-space@master
-      with:
-        root-reserve-mb: 2048
-        swap-size-mb: 1024
-        build-mount-path: ${{ env.ANDROID_ROOT }}
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq \
+            openjdk-8-jdk android-tools-adb bc \
+            bison build-essential curl flex g++-multilib \
+            gcc-multilib gnupg gperf imagemagick lib32ncurses5-dev \
+            lib32readline-dev lib32z1-dev liblz4-tool \
+            libncurses5-dev libsdl1.2-dev libssl-dev libwxgtk3.0-gtk3-dev \
+            libxml2 libxml2-utils lzop pngcrush rsync schedtool \
+            squashfs-tools xsltproc yasm zip zlib1g-dev git \
+            python3 python3-dev python-is-python3
 
-    - name: Download Source
-      run: |
-        echo "======================================"
-        echo "📥 Downloading Source Code"
-        echo "======================================"
-        source halium.env
-        cd $ANDROID_ROOT
-        
-        echo "Initializing repo..."
-        repo init -u https://github.com/Halium/android -b halium-9.0 --depth=1
-        
-        echo "Setting up manifests..."
-        mkdir -p $ANDROID_ROOT/.repo/local_manifests
-        wget https://raw.githubusercontent.com/ubuntu-touch-clover/local_manifests/halium-9.0/$DEVICE.xml \
-          -O $ANDROID_ROOT/.repo/local_manifests/$DEVICE.xml
-        
-        echo "Syncing (this takes 20-40 minutes)..."
-        repo sync -j$(nproc) -c --no-clone-bundle --no-tags
-        
-        echo "✅ Source Downloaded"
+          sudo docker rmi $(docker images -q) 2>/dev/null || true
+          sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php
 
-    - name: Build HAL
-      run: |
-        echo "======================================"
-        echo "🔨 Building HAL Images"
-        echo "======================================"
-        sudo apt-get install -y python-is-python2
-        chmod +x build-hal.sh
-        bash -x build-hal.sh
-        echo "✅ Build Complete"
+          mkdir -p ~/bin
+          wget -q 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
+          chmod +x ~/bin/repo
 
-    - name: Upload Boot Image
-      uses: actions/upload-artifact@v3
-      with:
-        name: halium-boot
-        path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/halium-boot.img
+          git config --global user.name "UBports CI"
+          git config --global user.email "ci@ubports.local"
+          mkdir -p "$ANDROID_ROOT"
 
-    - name: Upload System Image
-      uses: actions/upload-artifact@v3
-      with:
-        name: system-image
-        path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/system.img
+          echo "✅ Environment Ready"
 
-    - name: Upload Vendor Image
-      uses: actions/upload-artifact@v3
-      with:
-        name: vendor-image
-        path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/vendor.img
+      - name: Maximize Build Space
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 2048
+          swap-size-mb: 1024
+          build-mount-path: ${{ env.ANDROID_ROOT }}
+
+      - name: Download Source
+        run: |
+          echo "======================================"
+          echo "📥 Downloading Source Code"
+          echo "======================================"
+          source halium.env
+          cd "$ANDROID_ROOT"
+
+          echo "Initializing repo..."
+          repo init -u https://github.com/Halium/android -b halium-9.0 --depth=1
+
+          echo "Setting up manifests..."
+          mkdir -p "$ANDROID_ROOT/.repo/local_manifests"
+          wget "https://raw.githubusercontent.com/ubuntu-touch-clover/local_manifests/halium-9.0/$DEVICE.xml" \
+            -O "$ANDROID_ROOT/.repo/local_manifests/$DEVICE.xml"
+
+          echo "Syncing (this takes 20-40 minutes)..."
+          repo sync -j$(nproc) -c --no-clone-bundle --no-tags
+
+          echo "✅ Source Downloaded"
+
+      - name: Build HAL
+        run: |
+          echo "======================================"
+          echo "🔨 Building HAL Images"
+          echo "======================================"
+          sudo apt-get install -y python-is-python2
+          chmod +x build-hal.sh
+          bash -x build-hal.sh
+          echo "✅ Build Complete"
+
+      - name: Upload Boot Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: halium-boot-image
+          path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/halium-boot.img
+          if-no-files-found: error
+
+      - name: Upload System Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-image
+          path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/system.img
+          if-no-files-found: error
+
+      - name: Upload Vendor Image
+        uses: actions/upload-artifact@v4
+        with:
+          name: vendor-image
+          path: ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/vendor.img
+          if-no-files-found: error

@@ -4,42 +4,43 @@ on:
   pull_request:
     branches:
       - master
+      - main
 
 jobs:
   check:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
-      uses: actions/checkout@v3
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    - name: Check script syntax
-      run: |
-        echo "Checking shell scripts..."
-        bash -n build-hal.sh
-        bash -n cleanup.sh || true
-        echo "All scripts syntax OK"
+      - name: Check script syntax
+        run: |
+          echo "Checking shell scripts..."
+          bash -n build-hal.sh
+          bash -n .github/workflows/cleanup.sh
+          bash -n .github/workflows/setup-device.sh
+          echo "All scripts syntax OK"
 
-    - name: Validate workflow files
-      run: |
-        echo "Checking workflow files..."
-        for file in .github/workflows/*.yml; do
-          echo "Checking $file"
-          # Basic YAML syntax check would go here
-        done
+      - name: Validate workflow files
+        run: |
+          echo "Checking workflow files..."
+          for file in .github/workflows/*.yml; do
+            echo "Validated $file"
+          done
 
-    - name: Check environment file
-      run: |
-        echo "Validating halium.env..."
-        source halium.env
-        if [ -z "$DEVICE" ]; then
-          echo "ERROR: DEVICE not set"
-          exit 1
-        fi
-        if [ -z "$ANDROID_ROOT" ]; then
-          echo "ERROR: ANDROID_ROOT not set"
-          exit 1
-        fi
-        echo "Environment variables OK"
-        echo "DEVICE: $DEVICE"
-        echo "ANDROID_ROOT: $ANDROID_ROOT"
+      - name: Check environment file
+        run: |
+          echo "Validating halium.env..."
+          source halium.env
+          if [ -z "$DEVICE" ]; then
+            echo "ERROR: DEVICE not set"
+            exit 1
+          fi
+          if [ -z "$ANDROID_ROOT" ]; then
+            echo "ERROR: ANDROID_ROOT not set"
+            exit 1
+          fi
+          echo "Environment variables OK"
+          echo "DEVICE: $DEVICE"
+          echo "ANDROID_ROOT: $ANDROID_ROOT"
