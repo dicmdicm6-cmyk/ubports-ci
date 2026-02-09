@@ -1,0 +1,42 @@
+# Build outputs
+*.img
+*.zip
+*.tar
+*.tar.gz
+*.tar.xz
+out/
+halium/
+
+# Android/AOSP
+*.apk
+*.ap_
+*.dex
+*.class
+local.properties
+.gradle/
+build/
+captures/
+.externalNativeBuild
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
