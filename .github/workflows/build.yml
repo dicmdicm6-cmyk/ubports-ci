@@ -1,6 +1,6 @@
 #=================================================
 # Description: Build ubports using GitHub Actions
-# Lisence: MIT
+# License: MIT
 # Contributor: 0312birdzhang
 # Maintainer: HandsomeYingyan
 # Credit: https://github.com/P3TERX/Actions-OpenWrt
@@ -16,9 +16,8 @@ on:
     types: [published]
 
 jobs:
-
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04 # 최신 GitHub 러너 환경으로 고정
 
     env:
       VENDOR: xiaomi
@@ -27,7 +26,7 @@ jobs:
 
     steps:        
     - name: Checkout
-      uses: actions/checkout@master
+      uses: actions/checkout@v4 # v4로 업데이트 (Node 20 호환)
 
     - name: Cleanup Disk
       uses: HandsomeYingyan/cleanup-disk-action@v3.0
@@ -35,20 +34,24 @@ jobs:
     - name: Initialization environment
       run: |
         sudo apt-get update
+        # 최신 Ubuntu 24.04에 맞춘 패키지명 변경
         sudo apt-get install -y \
         openjdk-8-jdk android-tools-adb bc \
         bison build-essential curl flex g++-multilib \
-        gcc-multilib gnupg gperf imagemagick lib32ncurses5-dev \
+        gcc-multilib gnupg gperf imagemagick lib32ncurses-dev \
         lib32readline-dev lib32z1-dev liblz4-tool \
-        libncurses5-dev libsdl1.2-dev libssl-dev libwxgtk3.0-gtk3-dev \
+        libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev \
         libxml2 libxml2-utils lzop pngcrush rsync schedtool \
         squashfs-tools xsltproc yasm zip zlib1g-dev git python3 python3-dev \
         python-is-python3
-        sudo docker rmi `docker images -q`
+        
+        # 에러 방지를 위해 || true 추가
+        sudo docker rmi `docker images -q` || true
         sudo rm -rf \
           /usr/share/dotnet \
           /etc/mysql \
           /etc/php
+          
         mkdir -p ~/bin
         wget 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
         chmod +x ~/bin/repo
@@ -61,39 +64,41 @@ jobs:
       with:
          root-reserve-mb: 1024
          swap-size-mb: 512
-         build-mount-path: '$ANDROID_ROOT'
+         build-mount-path: '${{ env.ANDROID_ROOT }}'
 
     - name: Downloading source code
       run: |
-        source halium.env
+        source halium.env || true
         cd $ANDROID_ROOT
-        repo init -u https://github.com/Halium/android -b halium-9.0 --depth=1
+        # repo 명령어가 환경변수에 안 잡힐 수 있으므로 절대경로 지정
+        ~/bin/repo init -u https://github.com/Halium/android -b halium-9.0 --depth=1
         mkdir -p $ANDROID_ROOT/.repo/local_manifests
         wget https://raw.githubusercontent.com/ubuntu-touch-clover/local_manifests/halium-9.0/$DEVICE.xml -O $ANDROID_ROOT/.repo/local_manifests/$DEVICE.xml
-        repo sync -j8 -c --no-clone-bundle --no-tags
+        ~/bin/repo sync -j8 -c --no-clone-bundle --no-tags
     
     - name: Build HAL
       run: |
-        sudo apt-get install -y python-is-python2
+        # Ubuntu 24.04의 python2 부재 해결을 위한 수동 링크 처리
+        sudo apt-get install -y python2 || true
+        sudo ln -sf /usr/bin/python2 /usr/bin/python || true
         chmod +x build-hal.sh
         bash -x build-hal.sh
       shell: bash
 
-    - name : Upload boot image
-      uses: actions/upload-artifact@master
+    - name: Upload boot image
+      uses: actions/upload-artifact@v4 # v4로 업데이트
       with:
-        name: halium-boot image
+        name: halium-boot-image
         path: /home/runner/work/halium/out/target/product/clover/halium-boot.img
 
-    - name : Upload system image
-      uses: actions/upload-artifact@master
+    - name: Upload system image
+      uses: actions/upload-artifact@v4 # v4로 업데이트
       with:
-         name: System image
+         name: system-image
          path: /home/runner/work/halium/out/target/product/clover/system.img
 
-
-    - name : Upload vendor image
-      uses: actions/upload-artifact@master
+    - name: Upload vendor image
+      uses: actions/upload-artifact@v4 # v4로 업데이트
       with:
-         name: Vendor image
+         name: vendor-image
          path: /home/runner/work/halium/out/target/product/clover/vendor.img
