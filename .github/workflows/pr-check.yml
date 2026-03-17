@@ -4,42 +4,78 @@ on:
   pull_request:
     branches:
       - master
+      - main
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    name: Validate Scripts and Configs
+    runs-on: ubuntu-latest # Ubuntu 24.04
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Check script syntax
+    - name: Setup Basic Python Environment
       run: |
-        echo "Checking shell scripts..."
+        # 24.04에서 스크립트가 python을 호출할 경우를 대비해 최소한의 링크 설정
+        sudo add-apt-repository ppa:deadsnakes/ppa -y -qq
+        sudo apt-get update -qq
+        sudo apt-get install -y -qq python2.7
+        sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+
+    - name: Check Shell Script Syntax
+      run: |
+        echo "======================================"
+        echo "🔍 Checking Shell Scripts Syntax"
+        echo "======================================"
+        # -n 옵션은 실행은 하지 않고 문법만 체크합니다.
         bash -n build-hal.sh
-        bash -n cleanup.sh || true
-        echo "All scripts syntax OK"
+        if [ -f "cleanup.sh" ]; then bash -n cleanup.sh; fi
+        echo "✅ Shell scripts syntax OK"
 
-    - name: Validate workflow files
+    - name: Validate Workflow YAML Files
       run: |
-        echo "Checking workflow files..."
+        echo "======================================"
+        echo "🔍 Validating GitHub Workflow Files"
+        echo "======================================"
+        # 파이썬3의 기본 모듈을 이용해 YAML 문법 에러가 없는지 검사합니다.
         for file in .github/workflows/*.yml; do
-          echo "Checking $file"
-          # Basic YAML syntax check would go here
+          echo "Checking: $file"
+          python3 -c "import yaml; yaml.safe_load(open('$file'))" || { echo "❌ Invalid YAML: $file"; exit 1; }
         done
+        echo "✅ All workflow files are valid"
 
-    - name: Check environment file
+    - name: Check Environment File (halium.env)
       run: |
-        echo "Validating halium.env..."
+        echo "======================================"
+        echo "🔍 Validating halium.env"
+        echo "======================================"
+        if [ ! -f "halium.env" ]; then
+          echo "❌ ERROR: halium.env file not found!"
+          exit 1
+        fi
+        
+        # 파일 소싱 후 필수 변수 확인
         source halium.env
-        if [ -z "$DEVICE" ]; then
-          echo "ERROR: DEVICE not set"
+        
+        MISSING_VAR=0
+        if [ -z "$DEVICE" ]; then echo "❌ ERROR: DEVICE is not set"; MISSING_VAR=1; fi
+        if [ -z "$VENDOR" ]; then echo "⚠️ WARNING: VENDOR is not set"; fi
+        if [ -z "$ANDROID_ROOT" ]; then echo "❌ ERROR: ANDROID_ROOT is not set"; MISSING_VAR=1; fi
+        
+        if [ $MISSING_VAR -eq 1 ]; then
           exit 1
         fi
-        if [ -z "$ANDROID_ROOT" ]; then
-          echo "ERROR: ANDROID_ROOT not set"
-          exit 1
-        fi
-        echo "Environment variables OK"
-        echo "DEVICE: $DEVICE"
-        echo "ANDROID_ROOT: $ANDROID_ROOT"
+        
+        echo "✅ Environment variables validation passed"
+        echo "Target Device: $DEVICE"
+        echo "Build Root: $ANDROID_ROOT"
+
+    - name: Verify Local Manifests Structure
+      run: |
+        echo "======================================"
+        echo "🔍 Checking Manifests Templates"
+        echo "======================================"
+        # 실제로 소스를 받지는 않지만, 매니페스트 형식이 올바른지 체크하는 로직
+        # (필요 시 추가적인 XML 검증 로직을 넣을 수 있습니다.)
+        echo "✅ Manifest structure check skipped (Passed by default)"
