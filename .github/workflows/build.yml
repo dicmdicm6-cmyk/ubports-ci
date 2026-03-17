@@ -1,23 +1,13 @@
-#=================================================
-# Description: Build ubports using GitHub Actions
-# License: MIT
-# Contributor: 0312birdzhang
-# Maintainer: HandsomeYingyan
-# Credit: https://github.com/P3TERX/Actions-OpenWrt
-#=================================================
-
-name: Build System Image
+name: Build System Image (Halium 11.0 / 9.0)
 
 on: 
   push:
-    branches:
-      - master
-  release:
-    types: [published]
+    branches: [ master ]
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04 # 최신 GitHub 러너 환경으로 고정
+    runs-on: ubuntu-24.04 # 20.04로 바꾸는 것이 훨씬 안정적이지만, 24.04 유지를 원하신다면 아래 코드를 쓰세요.
 
     env:
       VENDOR: xiaomi
@@ -26,79 +16,77 @@ jobs:
 
     steps:        
     - name: Checkout
-      uses: actions/checkout@v4 # v4로 업데이트 (Node 20 호환)
-
-    - name: Cleanup Disk
-      uses: HandsomeYingyan/cleanup-disk-action@v3.0
+      uses: actions/checkout@v4
 
     - name: Initialization environment
       run: |
         sudo apt-get update
-        # 최신 Ubuntu 24.04에 맞춘 패키지명 변경
+        # 1. Python 2.7 설치를 위한 PPA 추가
+        sudo add-apt-repository ppa:deadsnakes/ppa -y
+        sudo apt-get update
+        
+        # 2. 필수 패키지 설치 (Ubuntu 24.04 대응 명칭)
         sudo apt-get install -y \
-        openjdk-8-jdk android-tools-adb bc \
+        python2.7 python2.7-dev openjdk-11-jdk android-tools-adb bc \
         bison build-essential curl flex g++-multilib \
         gcc-multilib gnupg gperf imagemagick lib32ncurses-dev \
         lib32readline-dev lib32z1-dev liblz4-tool \
         libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev \
-        libxml2 libxml2-utils lzop pngcrush rsync schedtool \
-        squashfs-tools xsltproc yasm zip zlib1g-dev git python3 python3-dev \
-        python-is-python3
+        libxml2 libxml2-utils lzop rsync schedtool \
+        squashfs-tools xsltproc yasm zip zlib1g-dev git python3
         
-        # 에러 방지를 위해 || true 추가
-        sudo docker rmi `docker images -q` || true
-        sudo rm -rf \
-          /usr/share/dotnet \
-          /etc/mysql \
-          /etc/php
-          
+        # 3. /usr/bin/python 심볼릭 링크 강제 생성 (Python 2로)
+        sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+        
+        # 4. repo 도구 설치
         mkdir -p ~/bin
-        wget 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
-        chmod +x ~/bin/repo
-        git config --global user.name "UBports Xiaomi Pad 4 CI"
-        git config --global user.email "thisemaildoesnotexist@exist.com"
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        export PATH=$PATH:~/bin
+        
+        git config --global user.name "CI-Builder"
+        git config --global user.email "ci@example.com"
         mkdir -p $ANDROID_ROOT
         
-    - name: Maximize build space
-      uses: easimon/maximize-build-space@master
-      with:
-         root-reserve-mb: 1024
-         swap-size-mb: 512
-         build-mount-path: '${{ env.ANDROID_ROOT }}'
-
     - name: Downloading source code
       run: |
-        source halium.env || true
+        export PATH=$PATH:~/bin
         cd $ANDROID_ROOT
-        # repo 명령어가 환경변수에 안 잡힐 수 있으므로 절대경로 지정
-        ~/bin/repo init -u https://github.com/Halium/android -b halium-9.0 --depth=1
-        mkdir -p $ANDROID_ROOT/.repo/local_manifests
-        wget https://raw.githubusercontent.com/ubuntu-touch-clover/local_manifests/halium-9.0/$DEVICE.xml -O $ANDROID_ROOT/.repo/local_manifests/$DEVICE.xml
-        ~/bin/repo sync -j8 -c --no-clone-bundle --no-tags
+        ~/bin/repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
+        
+        mkdir -p .repo/local_manifests
+        cat <<EOF > .repo/local_manifests/clover.xml
+        <?xml version="1.0" encoding="UTF-8"?>
+        <manifest>
+          <project path="kernel/xiaomi/clover" name="ubuntu-touch-clover/halium_kernel_xiaomi_clover" remote="github" revision="master" />
+          <project path="device/xiaomi/clover" name="kyasu/android_device_xiaomi_clover" remote="github" revision="lineage-18.1" />
+          <project path="vendor/xiaomi/clover" name="TheMuppets/proprietary_vendor_xiaomi" remote="github" revision="lineage-18.1" />
+        </manifest>
+        EOF
+        
+        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags
     
     - name: Build HAL
       run: |
-        # Ubuntu 24.04의 python2 부재 해결을 위한 수동 링크 처리
-        sudo apt-get install -y python2 || true
-        sudo ln -sf /usr/bin/python2 /usr/bin/python || true
-        chmod +x build-hal.sh
-        bash -x build-hal.sh
+        export PATH=$PATH:~/bin
+        cd $ANDROID_ROOT
+        
+        # 빌드 전 다시 한번 Python 확인
+        python --version
+        
+        source build/envsetup.sh
+        # breakfast 대신 직접 lunch 사용 (더 확실함)
+        lunch lineage_clover-userdebug
+        
+        # 모든 타겟 빌드 시도
+        make -j$(nproc) halium-boot systemimage vendorimage
       shell: bash
 
-    - name: Upload boot image
-      uses: actions/upload-artifact@v4 # v4로 업데이트
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
       with:
-        name: halium-boot-image
-        path: /home/runner/work/halium/out/target/product/clover/halium-boot.img
-
-    - name: Upload system image
-      uses: actions/upload-artifact@v4 # v4로 업데이트
-      with:
-         name: system-image
-         path: /home/runner/work/halium/out/target/product/clover/system.img
-
-    - name: Upload vendor image
-      uses: actions/upload-artifact@v4 # v4로 업데이트
-      with:
-         name: vendor-image
-         path: /home/runner/work/halium/out/target/product/clover/vendor.img
+        name: halium-images
+        path: |
+          ${{ env.ANDROID_ROOT }}/out/target/product/clover/halium-boot.img
+          ${{ env.ANDROID_ROOT }}/out/target/product/clover/system.img
+          ${{ env.ANDROID_ROOT }}/out/target/product/clover/vendor.img
