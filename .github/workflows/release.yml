@@ -7,75 +7,48 @@ on:
       - completed
     branches:
       - master
+      - main
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # 이전 빌드 워크플로우가 성공했을 때만 실행
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     
+    permissions:
+      contents: write # 릴리스 생성을 위해 반드시 필요
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download artifacts
+      - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: ./artifacts
+          path: ./artifacts # 빌드된 모든 이미지가 이 폴더 하위로 다운로드됨
 
       - name: Get current date
         id: date
         run: echo "date=$(date +'%Y%m%d-%H%M')" >> $GITHUB_OUTPUT
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create GitHub Release and Upload Assets
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ steps.date.outputs.date }}
-          release_name: Halium Build ${{ steps.date.outputs.date }}
+          name: Halium Build ${{ steps.date.outputs.date }}
           body: |
-            Automated Halium build for Xiaomi Pad 4 (clover)
+            Automated Halium 11.0 build for Xiaomi Pad 4 (clover)
             
             **Build Date:** ${{ steps.date.outputs.date }}
-            **Commit:** ${{ github.sha }}
-            
-            ## Images
-            - halium-boot.img
-            - system.img
-            - vendor.img
+            **Triggered by:** ${{ github.event.workflow_run.head_sha }}
             
             ## Installation
-            Please refer to the documentation for installation instructions.
+            1. Flash `halium-boot.img` via fastboot.
+            2. Follow the UBports installation guide for the rootfs.
           draft: false
           prerelease: false
-
-      - name: Upload halium-boot.img
-        uses: actions/upload-release-asset@v1
+          # 하위 폴더에 흩어진 모든 .img 파일을 찾아 릴리스에 첨부
+          files: |
+            ./artifacts/**/*.img
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/halium-boot-image/halium-boot.img
-          asset_name: halium-boot.img
-          asset_content_type: application/octet-stream
-
-      - name: Upload system.img
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/System-image/system.img
-          asset_name: system.img
-          asset_content_type: application/octet-stream
-
-      - name: Upload vendor.img
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./artifacts/Vendor-image/vendor.img
-          asset_name: vendor.img
-          asset_content_type: application/octet-stream
