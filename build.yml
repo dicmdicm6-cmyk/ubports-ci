@@ -1,0 +1,98 @@
+name: Build System Image (Halium 11.0)
+
+on: 
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-20.04
+
+    env:
+      VENDOR: xiaomi
+      DEVICE: clover
+      ANDROID_ROOT: /home/runner/work/halium/
+
+    steps:        
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Maximize build space
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 1024
+        swap-size-mb: 1024
+        build-mount-path: '/home/runner/work/halium/'
+
+    - name: Initialization environment
+      run: |
+        sudo apt-get update
+        
+        # 1. Ubuntu 20.04에 최적화된 패키지 리스트 (단종 명칭 수정 완료)
+        sudo apt-get install -y \
+        python2.7 python2.7-dev python3 python3-dev \
+        openjdk-11-jdk android-tools-adb bc \
+        bison build-essential curl flex g++-multilib \
+        gcc-multilib gnupg gperf imagemagick lib32ncurses-dev \
+        lib32readline-dev lib32z1-dev liblz4-tool \
+        libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev \
+        libxml2 libxml2-utils lzop rsync schedtool \
+        squashfs-tools xsltproc yasm zip zlib1g-dev git
+        
+        # 3. Python 명령어 부재 해결 (매우 중요)
+        # 시스템의 python 명령어가 python2.7을 가리키도록 심볼릭 링크 생성
+        sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+        
+        # 4. 최신 repo 도구 설치
+        mkdir -p ~/bin
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
+        
+        git config --global user.name "CI-Builder"
+        git config --global user.email "ci@example.com"
+        mkdir -p $ANDROID_ROOT
+        
+    - name: Downloading source code
+      run: |
+        export PATH=$PATH:~/bin
+        cd $ANDROID_ROOT
+        # Halium 11.0 (Android 11) 브랜치 초기화
+        ~/bin/repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
+        
+        mkdir -p .repo/local_manifests
+        cat <<EOF > .repo/local_manifests/clover.xml
+        <?xml version="1.0" encoding="UTF-8"?>
+        <manifest>
+          <project path="kernel/xiaomi/clover" name="ubuntu-touch-clover/halium_kernel_xiaomi_clover" remote="github" revision="master" />
+          <project path="device/xiaomi/clover" name="kyasu/android_device_xiaomi_clover" remote="github" revision="lineage-18.1" />
+          <project path="vendor/xiaomi/clover" name="TheMuppets/proprietary_vendor_xiaomi" remote="github" revision="lineage-18.1" />
+        </manifest>
+        EOF
+        
+        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags
+    
+    - name: Build HAL
+      run: |
+        export PATH=$PATH:~/bin
+        cd $ANDROID_ROOT
+        
+        # 빌드 전 환경 확인
+        python --version # Python 2.7.18이 출력되어야 함
+        
+        source build/envsetup.sh
+        # Halium 11은 런치 명칭이 다를 수 있으므로 확인 필요
+        lunch lineage_clover-userdebug || lunch aosp_clover-userdebug
+        
+        # 최신 mka 명령어로 빌드 (병렬 최적화)
+        mka halium-boot systemimage vendorimage
+      shell: bash
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: halium-11-clover-images
+        path: |
+          ${{ env.ANDROID_ROOT }}/out/target/product/clover/halium-boot.img
+          ${{ env.ANDROID_ROOT }}/out/target/product/clover/system.img
+          ${{ env.ANDROID_ROOT }}/out/target/product/clover/vendor.img

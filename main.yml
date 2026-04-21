@@ -1,0 +1,121 @@
+name: Build System Image
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  workflow_dispatch:
+
+env:
+  VENDOR: xiaomi
+  DEVICE: clover
+  ANDROID_ROOT: /home/runner/work/halium/
+
+jobs:
+  build:
+    name: Build Halium 11.0 Images
+    runs-on: ubuntu-20.04 # Ubuntu 20.04
+    
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Free Disk Space
+      uses: HandsomeYingyan/cleanup-disk-action@v3.0
+
+    - name: Setup Environment
+      run: |
+        echo "======================================"
+        echo "🔧 Setting Up Build Environment (Ubuntu 20.04)"
+        echo "======================================"
+        
+        sudo apt-get update -qq
+        
+        # 1. Ubuntu 20.04 호환 패키지 설치 (단종된 명칭 업데이트 완료)
+        sudo apt-get install -y -qq \
+          python2.7 python2.7-dev python3 python3-dev \
+          openjdk-11-jdk android-tools-adb bc \
+          bison build-essential curl flex g++-multilib \
+          gcc-multilib gnupg gperf imagemagick lib32ncurses-dev \
+          lib32readline-dev lib32z1-dev liblz4-tool \
+          libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev \
+          libxml2 libxml2-utils lzop pngcrush rsync schedtool \
+          squashfs-tools xsltproc yasm zip zlib1g-dev git
+        
+        # 3. Python 심볼릭 링크 해결 (매우 중요: python -> python2.7)
+        sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+        
+        sudo docker rmi $(docker images -q) 2>/dev/null || true
+        sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php
+        
+        mkdir -p ~/bin
+        wget -q 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
+        chmod +x ~/bin/repo
+        
+        git config --global user.name "UBports CI"
+        git config --global user.email "ci@ubports.local"
+        mkdir -p $ANDROID_ROOT
+        
+        echo "✅ Environment Ready"
+
+    - name: Maximize Build Space
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 1024
+        swap-size-mb: 1024
+        build-mount-path: ${{ env.ANDROID_ROOT }}
+
+    - name: Download Source
+      run: |
+        echo "======================================"
+        echo "📥 Downloading Halium 11.0 Source Code"
+        echo "======================================"
+        export PATH=$PATH:~/bin
+        cd $ANDROID_ROOT
+        
+        echo "Initializing repo (Halium 11.0)..."
+        ~/bin/repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
+        
+        echo "Setting up manifests (LineageOS 18.1 기반)..."
+        mkdir -p .repo/local_manifests
+        cat <<EOF > .repo/local_manifests/$DEVICE.xml
+        <?xml version="1.0" encoding="UTF-8"?>
+        <manifest>
+          <project path="kernel/xiaomi/clover" name="ubuntu-touch-clover/halium_kernel_xiaomi_clover" remote="github" revision="master" />
+          <project path="device/xiaomi/clover" name="kyasu/android_device_xiaomi_clover" remote="github" revision="lineage-18.1" />
+          <project path="vendor/xiaomi/clover" name="TheMuppets/proprietary_vendor_xiaomi" remote="github" revision="lineage-18.1" />
+        </manifest>
+        EOF
+        
+        echo "Syncing (this takes 20-40 minutes)..."
+        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags
+        
+        echo "✅ Source Downloaded"
+
+    - name: Build HAL
+      run: |
+        echo "======================================"
+        echo "🔨 Building HAL Images"
+        echo "======================================"
+        export PATH=$PATH:~/bin
+        cd $ANDROID_ROOT
+        
+        # 환경 변수 로드 및 빌드 시작
+        source build/envsetup.sh
+        lunch lineage_${{ env.DEVICE }}-userdebug || lunch aosp_${{ env.DEVICE }}-userdebug
+        
+        # mka 명령어로 빌드 (속도 최적화)
+        mka halium-boot systemimage vendorimage
+        
+        echo "✅ Build Complete"
+      shell: bash
+
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: halium-11-clover-images
+        path: |
+          ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/halium-boot.img
+          ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/system.img
+          ${{ env.ANDROID_ROOT }}/out/target/product/${{ env.DEVICE }}/vendor.img
