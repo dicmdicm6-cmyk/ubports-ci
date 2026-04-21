@@ -9,7 +9,7 @@ on:
 jobs:
   check:
     name: Validate Scripts and Configs
-    runs-on: ubuntu-latest # Ubuntu 24.04
+    runs-on: ubuntu-20.04 # Ubuntu 20.04
 
     steps:
     - name: Checkout
@@ -17,10 +17,9 @@ jobs:
 
     - name: Setup Basic Python Environment
       run: |
-        # 24.04에서 스크립트가 python을 호출할 경우를 대비해 최소한의 링크 설정
-        sudo add-apt-repository ppa:deadsnakes/ppa -y -qq
+        # 20.04에서 스크립트가 python을 호출할 경우를 대비해 최소한의 링크 설정
         sudo apt-get update -qq
-        sudo apt-get install -y -qq python2.7
+        sudo apt-get install -y -qq python2.7 python3-yaml
         sudo ln -sf /usr/bin/python2.7 /usr/bin/python
 
     - name: Check Shell Script Syntax
