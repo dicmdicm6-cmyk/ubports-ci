@@ -82,7 +82,7 @@ jobs:
         cat <<EOF > .repo/local_manifests/$DEVICE.xml
         <?xml version="1.0" encoding="UTF-8"?>
         <manifest>
-          <project path="kernel/xiaomi/clover" name="ubuntu-touch-clover/halium_kernel_xiaomi_clover" remote="github" revision="master" />
+          <project path="kernel/xiaomi/clover" name="ubuntu-touch-clover/halium_kernel_xiaomi_clover" remote="github" revision="halium-9.0" />
           <project path="device/xiaomi/clover" name="kyasu/android_device_xiaomi_clover" remote="github" revision="lineage-18.1" />
           <project path="vendor/xiaomi/clover" name="TheMuppets/proprietary_vendor_xiaomi" remote="github" revision="lineage-18.1" />
         </manifest>
