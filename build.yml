@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
 
     env:
       VENDOR: xiaomi
@@ -28,21 +28,23 @@ jobs:
     - name: Initialization environment
       run: |
         sudo apt-get update
+        sudo docker rmi $(docker images -q) 2>/dev/null || true
+        sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android /opt/ghc /usr/local/linuxbrew
         
-        # 1. Ubuntu 20.04에 최적화된 패키지 리스트 (단종 명칭 수정 완료)
+        # 1. Ubuntu Latest에 최적화된 패키지 리스트 (단종 명칭 수정 완료)
         sudo apt-get install -y \
-        python2.7 python2.7-dev python3 python3-dev \
+        python-is-python3 python3-dev \
         openjdk-11-jdk android-tools-adb bc \
         bison build-essential curl flex g++-multilib \
-        gcc-multilib gnupg gperf imagemagick lib32ncurses-dev \
+        gcc-multilib gnupg gperf imagemagick \
         lib32readline-dev lib32z1-dev liblz4-tool \
         libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev \
         libxml2 libxml2-utils lzop rsync schedtool \
         squashfs-tools xsltproc yasm zip zlib1g-dev git
         
         # 3. Python 명령어 부재 해결 (매우 중요)
-        # 시스템의 python 명령어가 python2.7을 가리키도록 심볼릭 링크 생성
-        sudo ln -sf /usr/bin/python2.7 /usr/bin/python
+        # 시스템의 python 명령어가 python3을 가리키도록 심볼릭 링크 생성
+        sudo ln -sf /usr/bin/python3 /usr/bin/python
         
         # 4. 최신 repo 도구 설치
         mkdir -p ~/bin
@@ -78,7 +80,7 @@ jobs:
         cd $ANDROID_ROOT
         
         # 빌드 전 환경 확인
-        python --version # Python 2.7.18이 출력되어야 함
+        python --version # Python 3이 출력되어야 함
         
         source build/envsetup.sh
         # Halium 11은 런치 명칭이 다를 수 있으므로 확인 필요
