@@ -22,7 +22,7 @@ echo "Vendor: $VENDOR_NAME"
 echo "Device: $DEVICE_NAME"
 echo "Root  : $ANDROID_ROOT_PATH"
 
-# 1. halium.env 생성 (Python 2.7 경로 및 별칭 포함)
+# 1. halium.env 생성 (Python 3 경로 및 별칭 포함)
 cat > halium.env << EOF
 # Halium Build Environment Variables
 export VENDOR="$VENDOR_NAME"
@@ -30,9 +30,9 @@ export DEVICE="$DEVICE_NAME"
 export ANDROID_ROOT="$ANDROID_ROOT_PATH"
 export PATH="\$PATH:~/bin"
 
-# Ensure Python 2 is used for legacy build scripts
-if [ -f /usr/bin/python2.7 ]; then
-    alias python='/usr/bin/python2.7'
+# Ensure Python 3 is used for build scripts
+if [ -f /usr/bin/python3 ]; then
+    alias python='/usr/bin/python3'
 fi
 EOF
 
@@ -56,10 +56,10 @@ fi
 echo "--------------------------------------"
 echo "🔍 Validating Setup..."
 
-if command -v python2.7 >/dev/null 2>&1; then
-    echo "  - Python 2.7: Found"
+if command -v python3 >/dev/null 2>&1; then
+    echo "  - Python 3: Found"
 else
-    echo "  - Python 2.7: NOT FOUND (Run 'sudo apt install python2.7' if on local)"
+    echo "  - Python 3: NOT FOUND (Run 'sudo apt install python3' if on local)"
 fi
 
 echo "======================================"
