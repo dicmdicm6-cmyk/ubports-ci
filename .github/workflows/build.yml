@@ -70,7 +70,14 @@ jobs:
         </manifest>
         EOF
         
-        ~/bin/repo sync --force-sync -j$(nproc) -c --no-clone-bundle --no-tags
+        rm -rf .repo/project-objects/ubuntu-touch-clover/halium_kernel_xiaomi_clover.git || true
+        rm -rf .repo/project-objects/kyasu/android_device_xiaomi_clover.git || true
+        rm -rf .repo/project-objects/zeelog/proprietary_vendor_xiaomi.git || true
+        rm -rf .repo/projects/kernel/xiaomi/clover.git || true
+        rm -rf .repo/projects/device/xiaomi/clover.git || true
+        rm -rf .repo/projects/vendor/xiaomi/clover.git || true
+
+        ~/bin/repo sync --force-sync --force-remove-dirty -j$(nproc) -c --no-clone-bundle --no-tags
     
     - name: Build HAL
       run: |
