@@ -89,7 +89,7 @@ jobs:
         EOF
         
         echo "Syncing (this takes 20-40 minutes)..."
-        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags
+        ~/bin/repo sync --force-sync -j$(nproc) -c --no-clone-bundle --no-tags
         
         echo "✅ Source Downloaded"
 

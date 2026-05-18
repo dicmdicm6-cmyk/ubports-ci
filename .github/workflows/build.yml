@@ -70,7 +70,7 @@ jobs:
         </manifest>
         EOF
         
-        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags
+        ~/bin/repo sync --force-sync -j$(nproc) -c --no-clone-bundle --no-tags
     
     - name: Build HAL
       run: |
