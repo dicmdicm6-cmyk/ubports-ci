@@ -82,9 +82,11 @@ jobs:
         cat <<EOF > .repo/local_manifests/$DEVICE.xml
         <?xml version="1.0" encoding="UTF-8"?>
         <manifest>
-          <project path="kernel/xiaomi/clover" name="ubuntu-touch-clover/halium_kernel_xiaomi_clover" remote="github" revision="master" />
+          <project path="kernel/xiaomi/sdm660" name="kyasu/android_kernel_xiaomi_sdm660" remote="github" revision="lineage-18.1" />
+          <project path="device/xiaomi/sdm660-common" name="kyasu/android_device_xiaomi_sdm660-common" remote="github" revision="lineage-18.1" />
           <project path="device/xiaomi/clover" name="kyasu/android_device_xiaomi_clover" remote="github" revision="lineage-18.1" />
-          <project path="vendor/xiaomi/clover" name="TheMuppets/proprietary_vendor_xiaomi" remote="github" revision="lineage-18.1" />
+          <project path="vendor/xiaomi/sdm660-common" name="kyasu/android_vendor_xiaomi_sdm660-common" remote="github" revision="lineage-18.1" />
+          <project path="vendor/xiaomi/clover" name="kyasu/android_vendor_xiaomi_clover" remote="github" revision="lineage-18.1" />
         </manifest>
         EOF
         
