@@ -15,7 +15,8 @@ env:
 jobs:
   build:
     name: Build Halium 11.0 Images
-    runs-on: ubuntu-20.04 # Ubuntu 20.04 natively supports Python 2.7 needed for Halium 11
+    runs-on: ubuntu-latest
+    container: ubuntu:20.04
     
     steps:
     - name: Checkout
