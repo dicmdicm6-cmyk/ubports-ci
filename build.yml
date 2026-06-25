@@ -8,7 +8,6 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    container: ubuntu:20.04
 
     env:
       VENDOR: xiaomi
@@ -19,48 +18,36 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Maximize build space
-      uses: easimon/maximize-build-space@master
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
       with:
-        root-reserve-mb: 1024
-        swap-size-mb: 1024
-        build-mount-path: '/home/runner/work/halium/'
-
-    - name: Initialization environment
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: false
+    - name: Build System Image in Docker
       run: |
-        sudo apt-get update
-        sudo docker rmi $(docker images -q) 2>/dev/null || true
-        sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android /opt/ghc /usr/local/linuxbrew
+        mkdir -p ${{ env.ANDROID_ROOT }}
+        docker run --rm -v ${{ env.ANDROID_ROOT }}:/home/builder/halium -e ANDROID_ROOT=/home/builder/halium -e VENDOR=${{ env.VENDOR }} -e DEVICE=${{ env.DEVICE }} ubuntu:20.04 /bin/bash -c '
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y python-is-python3 python3-dev openjdk-11-jdk android-tools-adb bc bison build-essential curl flex g++-multilib gcc-multilib gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev libxml2 libxml2-utils lzop rsync schedtool squashfs-tools xsltproc yasm zip zlib1g-dev git sudo wget
         
-        # 1. Ubuntu Latest에 최적화된 패키지 리스트 (단종 명칭 수정 완료)
-        sudo apt-get install -y \
-        python-is-python3 python3-dev \
-        openjdk-11-jdk android-tools-adb bc \
-        bison build-essential curl flex g++-multilib \
-        gcc-multilib gnupg gperf imagemagick \
-        lib32readline-dev lib32z1-dev liblz4-tool \
-        libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev \
-        libxml2 libxml2-utils lzop rsync schedtool \
-        squashfs-tools xsltproc yasm zip zlib1g-dev git
+        ln -sf /usr/bin/python3 /usr/bin/python
         
-        # 3. Python 명령어 부재 해결 (매우 중요)
-        # 시스템의 python 명령어가 python3을 가리키도록 심볼릭 링크 생성
-        sudo ln -sf /usr/bin/python3 /usr/bin/python
-        
-        # 4. 최신 repo 도구 설치
         mkdir -p ~/bin
         curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
         chmod a+x ~/bin/repo
+        export PATH=$PATH:~/bin
         
         git config --global user.name "CI-Builder"
         git config --global user.email "ci@example.com"
-        mkdir -p $ANDROID_ROOT
         
-    - name: Downloading source code
-      run: |
-        export PATH=$PATH:~/bin
+        mkdir -p $ANDROID_ROOT
         cd $ANDROID_ROOT
-        # Halium 11.0 (Android 11) 브랜치 초기화
+
         ~/bin/repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
         
         mkdir -p .repo/local_manifests
@@ -73,22 +60,13 @@ jobs:
         </manifest>
         EOF
         
-        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags
-    
-    - name: Build HAL
-      run: |
-        export PATH=$PATH:~/bin
-        cd $ANDROID_ROOT
-        
-        # 빌드 전 환경 확인
-        python --version # Python 3이 출력되어야 함
+        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags --current-branch
         
         source build/envsetup.sh
-        # Halium 11은 런치 명칭이 다를 수 있으므로 확인 필요
-        lunch lineage_clover-userdebug || lunch aosp_clover-userdebug
+        lunch lineage_${DEVICE}-userdebug || lunch aosp_${DEVICE}-userdebug
         
-        # 최신 mka 명령어로 빌드 (병렬 최적화)
         mka halium-boot systemimage vendorimage
+        '
       shell: bash
 
     - name: Upload Artifacts
