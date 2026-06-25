@@ -21,94 +21,56 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Free Disk Space
-      uses: HandsomeYingyan/cleanup-disk-action@v3.0
 
-    - name: Setup Environment
+    - name: Free Disk Space (Ubuntu)
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: false
+    - name: Build System Image in Docker
       run: |
-        echo "======================================"
-        echo "🔧 Setting Up Build Environment (Ubuntu Latest)"
-        echo "======================================"
+        mkdir -p ${{ env.ANDROID_ROOT }}
+        docker run --rm -v ${{ env.ANDROID_ROOT }}:/home/builder/halium -e ANDROID_ROOT=/home/builder/halium -e VENDOR=${{ env.VENDOR }} -e DEVICE=${{ env.DEVICE }} ubuntu:20.04 /bin/bash -c '
+        apt-get update
+        DEBIAN_FRONTEND=noninteractive apt-get install -y python-is-python3 python3-dev openjdk-11-jdk android-tools-adb bc bison build-essential curl flex g++-multilib gcc-multilib gnupg gperf imagemagick lib32readline-dev lib32z1-dev liblz4-tool libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev libxml2 libxml2-utils lzop rsync schedtool squashfs-tools xsltproc yasm zip zlib1g-dev git sudo wget
         
-        sudo apt-get update -qq
-        
-        # 1. Ubuntu Latest 호환 패키지 설치 (단종된 명칭 업데이트 완료)
-        sudo apt-get install -y -qq \
-          python-is-python3 python3-dev \
-          openjdk-11-jdk android-tools-adb bc \
-          bison build-essential curl flex g++-multilib \
-          gcc-multilib gnupg gperf imagemagick \
-          lib32readline-dev lib32z1-dev liblz4-tool \
-          libncurses-dev libsdl1.2-dev libssl-dev libwxgtk3.2-dev \
-          libxml2 libxml2-utils lzop pngcrush rsync schedtool \
-          squashfs-tools xsltproc yasm zip zlib1g-dev git
-        
-        # 3. Python 심볼릭 링크 해결 (매우 중요: python -> python3)
-        sudo ln -sf /usr/bin/python3 /usr/bin/python
-        
-        sudo docker rmi $(docker images -q) 2>/dev/null || true
-        sudo rm -rf /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android /opt/ghc /usr/local/linuxbrew
+        ln -sf /usr/bin/python3 /usr/bin/python
         
         mkdir -p ~/bin
-        wget -q 'https://storage.googleapis.com/git-repo-downloads/repo' -P ~/bin
-        chmod +x ~/bin/repo
-        
-        git config --global user.name "UBports CI"
-        git config --global user.email "ci@ubports.local"
-        mkdir -p $ANDROID_ROOT
-        
-        echo "✅ Environment Ready"
-
-    - name: Maximize Build Space
-      uses: easimon/maximize-build-space@master
-      with:
-        root-reserve-mb: 1024
-        swap-size-mb: 1024
-        build-mount-path: ${{ env.ANDROID_ROOT }}
-
-    - name: Download Source
-      run: |
-        echo "======================================"
-        echo "📥 Downloading Halium 11.0 Source Code"
-        echo "======================================"
+        curl https://storage.googleapis.com/git-repo-downloads/repo > ~/bin/repo
+        chmod a+x ~/bin/repo
         export PATH=$PATH:~/bin
+        
+        git config --global user.name "CI-Builder"
+        git config --global user.email "ci@example.com"
+        
+        mkdir -p $ANDROID_ROOT
         cd $ANDROID_ROOT
         
-        echo "Initializing repo (Halium 11.0)..."
         ~/bin/repo init -u https://github.com/Halium/android -b halium-11.0 --depth=1
         
-        echo "Setting up manifests (LineageOS 18.1 기반)..."
         mkdir -p .repo/local_manifests
-        cat <<EOF > .repo/local_manifests/$DEVICE.xml
+        cat <<EOF > .repo/local_manifests/clover.xml
         <?xml version="1.0" encoding="UTF-8"?>
         <manifest>
-          <project path="kernel/xiaomi/clover" name="ubuntu-touch-clover/halium_kernel_xiaomi_clover" remote="github" revision="master" />
+          <project path="kernel/xiaomi/clover" name="ubuntu-touch-clover/halium_kernel_xiaomi_clover" remote="github" revision="halium-9.0" />
           <project path="device/xiaomi/clover" name="kyasu/android_device_xiaomi_clover" remote="github" revision="lineage-18.1" />
-          <project path="vendor/xiaomi/clover" name="TheMuppets/proprietary_vendor_xiaomi" remote="github" revision="lineage-18.1" />
+          <project path="vendor/xiaomi/clover" name="zeelog/proprietary_vendor_xiaomi" remote="github" revision="lineage-18.1" />
         </manifest>
         EOF
         
-        echo "Syncing (this takes 20-40 minutes)..."
-        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags
+        ~/bin/repo sync -j$(nproc) -c --no-clone-bundle --no-tags --current-branch
         
-        echo "✅ Source Downloaded"
-
-    - name: Build HAL
-      run: |
-        echo "======================================"
-        echo "🔨 Building HAL Images"
-        echo "======================================"
-        export PATH=$PATH:~/bin
-        cd $ANDROID_ROOT
-        
-        # 환경 변수 로드 및 빌드 시작
         source build/envsetup.sh
-        lunch lineage_${{ env.DEVICE }}-userdebug || lunch aosp_${{ env.DEVICE }}-userdebug
+        lunch lineage_${DEVICE}-userdebug || lunch aosp_${DEVICE}-userdebug
         
-        # mka 명령어로 빌드 (속도 최적화)
         mka halium-boot systemimage vendorimage
-        
-        echo "✅ Build Complete"
+        '
       shell: bash
 
     - name: Upload Artifacts
